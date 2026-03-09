@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>IETF Governance Power Map</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════
+   PRE-iOS 7 SKEUOMORPHIC DESIGN SYSTEM
+   Based on iPhone HIG (2008-2012): textured surfaces,
+   embossed controls, 44pt touch targets, visual depth
+   ═══════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Helvetica+Neue:wght@300;400;500;700&display=swap');
+
+:root {
+  --nav-height: 44px;
+  --tab-height: 49px;
+  --touch-min: 44px;
+  /* iOS 5-6 era palette */
+  --steel-top: #b0bac5;
+  --steel-bot: #6d7a8a;
+  --bar-shadow: rgba(0,0,0,0.45);
+  --linen-bg: #e5e0d8;
+  --cell-bg: #ffffff;
+  --cell-border: #c8c7cc;
+  --text-primary: #1a1a1a;
+  --text-secondary: #6d6d72;
+  --blue-tint: #007aff;
+  --blue-pressed: #0062cc;
+  /* Org colors */
+  --iab-color: #c0392b;
+  --iesg-color: #2980b9;
+  --area-color: #8e44ad;
+  --irtf-color: #27ae60;
+  --wg-color: #7f8c8d;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  color: var(--text-primary);
+  background: var(--linen-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Linen texture background (iOS 5 Notification Center style) */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent, transparent 2px,
+      rgba(0,0,0,0.02) 2px, rgba(0,0,0,0.02) 4px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent, transparent 2px,
+      rgba(0,0,0,0.015) 2px, rgba(0,0,0,0.015) 4px
+    ),
+    linear-gradient(180deg, #e8e3db 0%, #d5d0c8 100%);
+}
+
+/* ─── Navigation Bar (iOS 5 style) ─── */
+.nav-bar {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: var(--nav-height);
+  z-index: 100;
+  background: linear-gradient(180deg,
+    #b8c5d6 0%, #8e9faf 2%, #7d8fa1 50%,
+    #6a7d90 51%, #5d7085 100%
+  );
+  border-bottom: 1px solid rgba(0,0,0,0.4);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.15) inset,
+    0 1px 3px var(--bar-shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-bar h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 -1px 1px rgba(0,0,0,0.5);
+  letter-spacing: -0.3px;
+}
+
+.nav-bar .subtitle {
+  position: absolute; right: 10px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+  text-shadow: 0 -1px 1px rgba(0,0,0,0.3);
+}
+
+/* ─── Tab Bar (iOS 5 style) ─── */
+.tab-bar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: var(--tab-height);
+  z-index: 100;
+  background: linear-gradient(180deg,
+    #434343 0%, #2a2a2a 2%, #1a1a1a 50%,
+    #111 51%, #0a0a0a 100%
+  );
+  border-top: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 -1px 4px rgba(0,0,0,0.6);
+  display: flex;
+  align-items: stretch;
+}
+
+.tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-min);
+  cursor: pointer;
+  border: none; background: none;
+  color: #8e8e93;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  transition: color 0.15s;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.tab-item.active {
+  color: #fff;
+}
+.tab-item svg {
+  width: 24px; height: 24px;
+  margin-bottom: 2px;
+  fill: currentColor;
+}
+.tab-item.active svg {
+  filter: drop-shadow(0 0 4px rgba(100,160,255,0.4));
+}
+
+/* ─── Main Content Area ─── */
+.content {
+  position: fixed;
+  top: var(--nav-height);
+  bottom: var(--tab-height);
+  left: 0; right: 0;
+  overflow: hidden;
+}
+
+.panel { display: none; width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden; }
+.panel.active { display: block; }
+
+/* ─── Graph Panel ─── */
+#graph-panel {
+  overflow: hidden;
+  background: #1a1c2e;
+}
+#graph-panel svg { width: 100%; height: 100%; }
+
+.graph-legend {
+  position: absolute;
+  bottom: 12px; left: 12px;
+  background: rgba(0,0,0,0.7);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  padding: 10px 12px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.legend-row {
+  display: flex; align-items: center;
+  margin: 3px 0;
+  font-size: 11px;
+  color: rgba(255,255,255,0.85);
+}
+.legend-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  margin-right: 7px;
+  box-shadow: 0 0 4px rgba(255,255,255,0.2);
+}
+
+/* ─── List Panel (iOS grouped table) ─── */
+#list-panel {
+  -webkit-overflow-scrolling: touch;
+  padding: 10px 0;
+}
+
+.search-bar-wrap {
+  padding: 8px 10px;
+  position: sticky; top: 0;
+  z-index: 10;
+  background: var(--linen-bg);
+}
+
+.search-bar {
+  width: 100%;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid #b0b0b5;
+  background: #fff;
+  padding: 0 12px 0 32px;
+  font-size: 15px;
+  color: var(--text-primary);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.1) inset,
+    0 1px 0 rgba(255,255,255,0.6);
+  outline: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%238e8e93'%3E%3Ccircle cx='7' cy='7' r='5.5' stroke='%238e8e93' stroke-width='1.5' fill='none'/%3E%3Cline x1='11' y1='11' x2='14' y2='14' stroke='%238e8e93' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+}
+
+.group-header {
+  padding: 6px 16px 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+}
+
+.table-group {
+  margin: 0 10px 12px;
+  background: var(--cell-bg);
+  border-radius: 10px;
+  box-shadow:
+    0 1px 3px rgba(0,0,0,0.12),
+    0 0 0 1px rgba(0,0,0,0.04);
+  overflow: hidden;
+}
+
+.cell {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  padding: 8px 16px 8px 12px;
+  border-bottom: 1px solid var(--cell-border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.cell:last-child { border-bottom: none; }
+.cell:active { background: #d0d0d5; }
+
+.cell-rank {
+  width: 28px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.cell-body {
+  flex: 1;
+  min-width: 0;
+  margin-left: 10px;
+}
+
+.cell-name {
+  font-size: 17px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cell-detail {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cell-weight {
+  flex-shrink: 0;
+  margin-left: 8px;
+  display: flex; align-items: center;
+}
+
+.weight-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 24px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  padding: 0 8px;
+  background: linear-gradient(180deg, #5ac8fa 0%, #007aff 100%);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.2),
+    0 1px 0 rgba(255,255,255,0.3) inset;
+}
+
+.org-pills {
+  display: flex; gap: 3px; margin-top: 3px; flex-wrap: wrap;
+}
+.org-pill {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.org-pill.IAB { background: var(--iab-color); }
+.org-pill.IESG { background: var(--iesg-color); }
+.org-pill.AREA { background: var(--area-color); }
+.org-pill.IRTF-RG { background: var(--irtf-color); }
+.org-pill.IETF-WG { background: var(--wg-color); }
+
+/* iOS chevron disclosure */
+.cell::after {
+  content: '';
+  width: 8px; height: 8px;
+  border-right: 2px solid #c7c7cc;
+  border-bottom: 2px solid #c7c7cc;
+  transform: rotate(-45deg);
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+/* ─── Stats Panel ─── */
+#stats-panel {
+  -webkit-overflow-scrolling: touch;
+  padding: 10px 0 20px;
+}
+
+.stat-card {
+  margin: 6px 10px;
+  background: var(--cell-bg);
+  border-radius: 10px;
+  box-shadow:
+    0 1px 3px rgba(0,0,0,0.12),
+    0 0 0 1px rgba(0,0,0,0.04);
+  padding: 14px 16px;
+}
+
+.stat-card h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.stat-number {
+  font-size: 44px;
+  font-weight: 300;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.stat-bar-row {
+  display: flex;
+  align-items: center;
+  margin: 6px 0;
+}
+.stat-bar-label {
+  width: 80px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.stat-bar-track {
+  flex: 1;
+  height: 18px;
+  background: #e8e8ed;
+  border-radius: 9px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08) inset;
+}
+.stat-bar-fill {
+  height: 100%;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #5ac8fa 0%, #007aff 100%);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.3) inset;
+  transition: width 0.4s ease;
+}
+.stat-bar-val {
+  width: 36px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  margin-left: 6px;
+  color: var(--text-primary);
+}
+
+/* ─── Detail Overlay ─── */
+.detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: none;
+  flex-direction: column;
+}
+.detail-overlay.open { display: flex; }
+
+.detail-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.4);
+}
+
+.detail-sheet {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  max-height: 70vh;
+  background: var(--linen-bg);
+  border-radius: 12px 12px 0 0;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  animation: sheetUp 0.25s ease-out;
+}
+
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.detail-handle {
+  width: 36px; height: 5px;
+  border-radius: 2.5px;
+  background: rgba(0,0,0,0.15);
+  margin: 8px auto;
+}
+
+.detail-header {
+  padding: 4px 16px 12px;
+  text-align: center;
+}
+
+.detail-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.detail-bio {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.detail-section {
+  margin: 0 10px 12px;
+  background: var(--cell-bg);
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  overflow: hidden;
+}
+
+.detail-row {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--cell-border);
+  font-size: 15px;
+}
+.detail-row:last-child { border-bottom: none; }
+.detail-row-label { color: var(--text-secondary); width: 80px; flex-shrink: 0; }
+.detail-row-value { flex: 1; font-weight: 500; }
+
+.detail-close {
+  position: absolute;
+  top: 8px; right: 12px;
+  width: var(--touch-min); height: var(--touch-min);
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none;
+  font-size: 28px; color: var(--blue-tint);
+  cursor: pointer;
+}
+
+/* ─── Graph tooltip ─── */
+.graph-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: rgba(0,0,0,0.85);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  display: none;
+  z-index: 50;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 0; }
+</style>
+</head>
+<body>
+
+<!-- Navigation Bar -->
+<nav class="nav-bar">
+  <h1>IETF Power Map</h1>
+  <span class="subtitle">Live from Datatracker</span>
+</nav>
+
+<!-- Tab Bar -->
+<div class="tab-bar">
+  <button class="tab-item active" data-tab="graph-panel" aria-label="Graph">
+    <svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="12" cy="18" r="3"/><line x1="8.5" y1="7.5" x2="10.5" y2="16" stroke="currentColor" stroke-width="1.5" fill="none"/><line x1="15.5" y1="7.5" x2="13.5" y2="16" stroke="currentColor" stroke-width="1.5" fill="none"/><line x1="9" y1="6" x2="15" y2="6" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+    Graph
+  </button>
+  <button class="tab-item" data-tab="list-panel" aria-label="List">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="3" rx="1"/><rect x="3" y="10.5" width="18" height="3" rx="1"/><rect x="3" y="17" width="18" height="3" rx="1"/></svg>
+    Power List
+  </button>
+  <button class="tab-item" data-tab="stats-panel" aria-label="Stats">
+    <svg viewBox="0 0 24 24"><rect x="3" y="14" width="4" height="7" rx="1"/><rect x="10" y="8" width="4" height="13" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>
+    Stats
+  </button>
+</div>
+
+<!-- Content -->
+<div class="content">
+  <!-- Graph Panel -->
+  <div id="graph-panel" class="panel active">
+    <svg id="graph-svg"></svg>
+    <div class="graph-legend">
+      <div class="legend-row"><div class="legend-dot" style="background:var(--iab-color)"></div>IAB</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--iesg-color)"></div>IESG</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--area-color)"></div>Area Director</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--irtf-color)"></div>IRTF Research</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--wg-color)"></div>WG Chair</div>
+    </div>
+    <div class="graph-tooltip" id="tooltip"></div>
+  </div>
+
+  <!-- List Panel -->
+  <div id="list-panel" class="panel">
+    <div class="search-bar-wrap">
+      <input type="search" class="search-bar" placeholder="Search people..." id="search-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    </div>
+    <div id="list-content"></div>
+  </div>
+
+  <!-- Stats Panel -->
+  <div id="stats-panel" class="panel">
+    <div id="stats-content"></div>
+  </div>
+</div>
+
+<!-- Detail Overlay -->
+<div class="detail-overlay" id="detail-overlay">
+  <div class="detail-backdrop" id="detail-backdrop"></div>
+  <div class="detail-sheet" id="detail-sheet">
+    <div class="detail-handle"></div>
+    <button class="detail-close" id="detail-close">&times;</button>
+    <div class="detail-header">
+      <div class="detail-name" id="detail-name"></div>
+      <div class="detail-bio" id="detail-bio"></div>
+    </div>
+    <div id="detail-body"></div>
+  </div>
+</div>
+
+<script>
+const RAW_DATA = {"n":[{"i":"119325","n":"Tommy Pauly","w":11,"o":["IAB","IESG","IETF-WG"],"g":["IAB:iab","IESG:iesg","IETF-WG:httpbis"],"c":3,"b":"Tommy Pauly is an engineer at Apple. There, he works on the networking stack for Apple\u2019s client operating systems, focusing on areas including network privacy, relays and proxies, secure transport pro"},{"i":"108756","n":"Cindy Morgan","w":10,"o":["IAB","IESG"],"g":["IAB:iab","IESG:iesg"],"c":2,"b":"Cindy Morgan has worked for Association Management Solutions (AMS) since 2001 and been part of the IETF Secretariat team since 2008, where she currently serves as the Director of Leadership Operations"},{"i":"140639","n":"Dirk KUTSCHER","w":8,"o":["IAB","IRTF-RG"],"g":["IAB:iab","IRTF-RG:dinrg"],"c":2,"b":"http://dirk-kutscher.info/"},{"i":"125944","n":"Ryan Polk","w":5,"o":["IAB"],"g":["IAB:iab"],"c":1},{"i":"123703","n":"Deb Cooley","w":14,"o":["IAB","IESG","AREA"],"g":["IAB:iab","IESG:iesg","AREA:sec"],"c":3,"b":"Retired Senior Cryptographic Vulnerability Analyst, National Security Agency Cybersecurity Directorate (NSA/CSD) with 37+ years of service in Dec 2023.  Most of Deb\u2019s career was spent as a security ev"},{"i":"112330","n":"Mirja Kuehlewind","w":8,"o":["IAB","IRTF-RG"],"g":["IAB:iab","IRTF-RG:maprg"],"c":2,"b":"Mirja K\u00fchlewind is a researcher at Ericsson Research in Aachen, Germany, focusing in her work on transport protocol evolution. Before that until February 2019, she worked as a Post-Doc at the Networke"},{"i":"106412","n":"Suresh Krishnan","w":6,"o":["IAB","IETF-WG"],"g":["IAB:iab","IETF-WG:aipref","IETF-WG:bpf"],"c":2,"b":"Suresh Krishnan works as a Distinguished Engineer (Strategy, Incubation and Applications) at Cisco. He has a Bachelor's degree in Electrical Engineering from the University of Madras in India and a Ma"},{"i":"112751","n":"Qin WU","w":6,"o":["IAB","IETF-WG"],"g":["IAB:iab","IETF-WG:scone"],"c":2,"b":"Qin Wu currently is an expert on Network Management Architecture with Huawei's Data Communication in China. \r\nHe is also responsible for enterprise networking innovation and standards work such as IoT"},{"i":"111656","n":"Warren Kumari","w":5,"o":["IAB"],"g":["IAB:iab"],"c":1,"b":"Warren Kumari currently works for Google in the Internet Evangelism\r\ngroup, and has been with the company since 2005.\r\nHe has over 30 years of experience in the Internet industry, ranging\r\nfrom tiny s"},{"i":"105786","n":"Matthew Bocci","w":11,"o":["IAB","IESG","IETF-WG"],"g":["IAB:iab","IESG:iesg","IETF-WG:bess","IETF-WG:nvo3"],"c":3,"b":"Matthew Bocci is Director of Technology and Standards with the Service Router product management team at Nokia, specialising in MPLS/Segment Routing, IP routing, Layer 2 and Layer 3 VPNs. He is also c"},{"i":"105791","n":"Cullen Fluffy Jennings","w":5,"o":["IAB"],"g":["IAB:iab"],"c":1,"b":"I help build collaboration systems used on the internet and strive to make simple trustable communications available to everyone. I am CTO of the Security and Collaboration groups at Cisco and I am in"},{"i":"105721","n":"Jana Iyengar","w":6,"o":["IAB","IETF-WG"],"g":["IAB:iab","IETF-WG:mops"],"c":2},{"i":"103881","n":"Mark Nottingham","w":6,"o":["IAB","IETF-WG"],"g":["IAB:iab","IETF-WG:httpbis","IETF-WG:aipref"],"c":2,"b":"Mark Nottingham has contributed to the design and maintenance of core Internet technologies for more than twenty-five years, focusing on HTTP, URLs, RSS/Atom, and QUIC. He has written more than thirty"},{"i":"107154","n":"Jason Livingood","w":5,"o":["IAB"],"g":["IAB:iab"],"c":1,"b":"Jason Livingood serves as Vice President of Technology Policy, Product & Standards at Comcast. As part of this role, he coordinates Comcast\u2019s efforts to do things including (1) develop open standards "},{"i":"109802","n":"Alvaro Retana","w":9,"o":["IAB","IRTF-RG","IETF-WG"],"g":["IAB:iab","IRTF-RG:rasprg","IETF-WG:spring"],"c":3,"b":"Alvaro Retana is VP of Technology Strategy in the Future Networks group at Futurewei Technologies.  He is a Board Member of the Industry Network Technology Council (INTC), has published four technical"},{"i":"111477","n":"Dhruv Dhody","w":6,"o":["IAB","IETF-WG"],"g":["IAB:iab","IETF-WG:pce","IETF-WG:srv6ops"],"c":2,"b":"Dhruv Dhody is a Standardization Expert at Huawei-India, with over 21 years of experience specializing in the research and development of technologies such as Path Computation Element (PCE), Segment R"},{"i":"105815","n":"Roman Danyliw","w":14,"o":["IAB","IESG","AREA"],"g":["IAB:iab","IESG:iesg","AREA:gen"],"c":3,"b":"Roman Danyliw is the Deputy Chief Technology Officer of the Carnegie Mellon University Software Engineering Institute.  He is currently serving as the Internet Engineering Task Force (IETF) Chair and "},{"i":"112869","n":"Mohamed Boucadair","w":9,"o":["IESG","AREA"],"g":["IESG:iesg","AREA:ops"],"c":2,"b":"\u2d4e\u2d53\u2d43\u2d4e\u2d4e\u2d30\u2d37 \u2d31\u2d53\u2d47\u2d37\u2d30\u2d62\u2d54 | \u0645\u062d\u0645\u062f \u0628\u0648\u0642\u062f\u0627\u064a\u0631\r\n\r\nSenior Network Architect within \"Strategy, Architecture, & Standardization\" team in Orange Innovation.\r\n\r\nOperations and Management Area Director. \r\n\r\nCo-Chaired IETF"},{"i":"108992","n":"Erik Kline","w":9,"o":["IESG","AREA"],"g":["IESG:iesg","AREA:int"],"c":2,"b":"affiliation: Aalyria\r\n\r\ntz: us/pacific\r\n\r\nmastodon: @ek@hachyderm.io\r\n\r\nMore in my [GitHub profile](https://github.com/ekline/ekline)."},{"i":"112723","n":"Paul Wouters","w":9,"o":["IESG","AREA"],"g":["IESG:iesg","AREA:sec"],"c":2,"b":"Security Area Director (2nd term)\r\n\r\nIKE / IPsec developer with libreswan for 25 years\r\nIETF participant for 15 years, mostly in the security area and DNS\r\nAiven.io Senior Security Architect\r\nFedora /"},{"i":"105906","n":"Jim Guichard","w":9,"o":["IESG","AREA"],"g":["IESG:iesg","AREA:rtg"],"c":2,"b":"Jim Guichard is a Senior Distinguished Engineer and Technical Vice President for IP protocol innovation and standardization at Futurewei. He is an experienced network protocol architect with 25+ years"},{"i":"104331","n":"Gorry Fairhurst","w":9,"o":["IESG","AREA"],"g":["IESG:iesg","AREA:wit"],"c":2,"b":"Gorry Fairhurst is a Professor at the University of Aberdeen, UK, where he has worked on Internet and transport protocols with a focus on protocol design, congestion control, and the transport API. My"},{"i":"106296","n":"Andy Newton","w":9,"o":["IESG","AREA"],"g":["IESG:iesg","AREA:art"],"c":2,"b":"Andy Newton is a Principal Engineer for ICANN, and has decades of\r\nexperience with Internet resource registries. He is an advocate\r\nfor free and open source software and an open Internet. Outside of\r\n"},{"i":"116439","n":"Mike Bishop","w":9,"o":["IESG","AREA"],"g":["IESG:iesg","AREA:wit"],"c":2,"b":"Mike Bishop is a Principal Architect at Akamai Technologies. He was editor of HTTP/3 (RFC 9114) and co-author of SVCB (RFC 9460), as well as being an active contributor to work on HTTP/2, QUIC, and va"},{"i":"105099","n":"Eric Vyncke","w":9,"o":["IESG","AREA"],"g":["IESG:iesg","AREA:int"],"c":2,"b":"\u00c9ric Vyncke is an Area Director for the Internet Area of the IETF. \r\n\r\nHe currently works at Cisco in the Emerging Technology & Innovation group where he focus on standards, IPv6, telemetry, and secur"},{"i":"108304","n":"Gunter Van de Velde","w":9,"o":["IESG","AREA"],"g":["IESG:iesg","AREA:rtg"],"c":2,"b":"Gunter Van de Velde serves as the Product Line Manager at Nokia's IP Department, specializing in routing technologies. His professional journey began in the realm of professional services, where he de"},{"i":"107859","n":"Mahesh Jethanandani","w":9,"o":["IESG","AREA"],"g":["IESG:iesg","AREA:ops"],"c":2,"b":"Mahesh Jethanandani (muh-HAYSH JETH-uh-nan-DAH-nee) is Distinguished Engineer at Arrcus.\r\n\r\nMahesh is a strategic leader and architect in manageability, programmability, and automation of networks, ra"},{"i":"130012","n":"Orie Steele","w":9,"o":["IESG","AREA"],"g":["IESG:iesg","AREA:art"],"c":2,"b":"Orie graduated from Stevens Institute of Technology with a Bachelor of Science in CyberSecurity and Master of Science in Computer Science in 2012.\r\nWhile at Stevens he focused on emerging cyber securi"},{"i":"122823","n":"Ketan Talaulikar","w":9,"o":["IESG","AREA"],"g":["IESG:iesg","AREA:rtg"],"c":2,"b":"Ketan Talaulikar is a Principal Engineer at Cisco Systems, specializing in IP/MPLS routing protocols and technologies. As a developer in Cisco's Common Routing Protocols team, he is currently focused "},{"i":"118763","n":"Stanislav V. Smyshlyaev","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:cfrg"],"c":1},{"i":"773","n":"David R. Oran","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:icnrg"],"c":1,"b":"David Oran was until September 2016 a Fellow at Cisco Systems. He is now independent and pursuing his interests in research in a number of areas, including ICN. Recent work has been in congestion cont"},{"i":"126300","n":"Sofia Celi","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:hrpc"],"c":1,"b":"Sof\u00eda Celi is a cryptography researcher at Brave and at the University of Bristol. She is interested in post-quantum cryptography, privacy-preserving techniques and secure messaging."},{"i":"122298","n":"Nick Sullivan","w":4,"o":["IRTF-RG","IETF-WG"],"g":["IRTF-RG:cfrg","IETF-WG:mls"],"c":2,"b":"Nick Sullivan is a technology leader and cryptography expert with over 20 years of experience in software engineering, research, and architecture, focused on improving security, performance, and priva"},{"i":"108990","n":"Ari Keranen","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:t2trg"],"c":1},{"i":"11843","n":"Carsten Bormann","w":4,"o":["IRTF-RG","IETF-WG"],"g":["IRTF-RG:t2trg","IETF-WG:core"],"c":2,"b":"https://github.com/cabo"},{"i":"121213","n":"David Plonka","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:maprg"],"c":1,"b":"David Plonka (Dave) is the principal research scientist at WiscNet: Wisconsin's Research & Education Network. His interests include Internet measurement, traffic classification, analytics, and anomaly"},{"i":"567","n":"Lixia Zhang","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:dinrg"],"c":1,"b":"Lixia Zhang is a professor in the Computer Science Department of UCLA. She received her Ph.D in computer science from MIT and was a member of the research staff at Xerox PARC before joining UCLA. She "},{"i":"124591","n":"Jonathan Hoyland","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:ufmrg"],"c":1},{"i":"122661","n":"Jen Linkova","w":4,"o":["IRTF-RG","IETF-WG"],"g":["IRTF-RG:panrg","IETF-WG:6man"],"c":2},{"i":"109354","n":"Brian Trammell","w":4,"o":["IRTF-RG","IETF-WG"],"g":["IRTF-RG:panrg","IETF-WG:scone"],"c":2,"b":"Brian Trammell has been interested in measuring the Internet since his university days as a sysadmin. He's currently a Staff Site Reliability Engineer at Google, where he works on datacenter automatio"},{"i":"110694","n":"Rodney Van Meter","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:qirg"],"c":1,"b":"Rod Van Meter graduated from Caltech and went to work at USC/ISI in 1986, and has been hanging around with IETF/IRTF folks ever since. His work on network-attached storage systems helped lay the groun"},{"i":"112423","n":"Sara Dickinson","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:pearg"],"c":1},{"i":"123472","n":"Shivan Kaul Sahib","w":4,"o":["IRTF-RG","IETF-WG"],"g":["IRTF-RG:pearg","IETF-WG:keytrans"],"c":2,"b":"Shivan leads privacy at Brave Software."},{"i":"102154","n":"Alexey Melnikov","w":4,"o":["IRTF-RG","IETF-WG"],"g":["IRTF-RG:cfrg","IETF-WG:kitten","IETF-WG:sml","IETF-WG:iotops","IETF-WG:emailcore"],"c":2,"b":"Alexey Melnikov is a former Applications and Real-Time Area director and is the Internet Messaging Team Lead at Isode. Alexey is the author or co-author of 65+ published RFCs related to electronic mai"},{"i":"126108","n":"Kurtis Heimerl","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:gaia"],"c":1},{"i":"128723","n":"Simone Ferlin","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:iccrg"],"c":1,"b":"I am a performance engineer and an adjunct senior lecturer working on system and network performance in cloud and bare-metal systems. My research background and interests are around transport protocol"},{"i":"19177","n":"Stephen Farrell","w":4,"o":["IRTF-RG","IETF-WG"],"g":["IRTF-RG:ufmrg","IETF-WG:openpgp","IETF-WG:sshm"],"c":2,"b":"Stephen Farrell is a research fellow in the `School of Computer Science and Statistics <https://scss.tcd.ie/>`__ at `Trinity College Dublin <https://tcd.ie/>`__  where he teaches and researches on sec"},{"i":"132980","n":"Ignacio Castro","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:rasprg"],"c":1,"b":"I am an Assitant Professor at Queen Mary University off London and I chair the Research and Analysis of Standard-Setting Processes (proposed) Research Group (rasprg) at the IRTF.\r\n\r\nMy work uses compu"},{"i":"123022","n":"Jane R Coffin","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:gaia"],"c":1},{"i":"121666","n":"Jerome Francois","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:nmrg"],"c":1},{"i":"127141","n":"Vidhi Goel","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:iccrg"],"c":1},{"i":"123344","n":"Reese Enghardt","w":4,"o":["IRTF-RG","IETF-WG"],"g":["IRTF-RG:iccrg","IETF-WG:ccwg"],"c":2},{"i":"124328","n":"Mallory Knodel","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:hrpc"],"c":1},{"i":"125485","n":"Wojciech Kozlowski","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:qirg"],"c":1},{"i":"114505","n":"Allison Mankin","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:pearg"],"c":1,"b":"Allison Mankin is an Internet protocol leader and researcher based in the Washington DC area and is the DNS Services lead at Packet Clearing House (PCH). She has a long history in and around the IETF "},{"i":"103877","n":"Michael Welzl","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:sustain"],"c":1},{"i":"123468","n":"Eve Schooler","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:sustain"],"c":1,"b":"Eve Schooler is a Visiting Professor of Sustainable Computing at University of Oxford, sponsored by the UK's Royal Academy of Engineering (RAEng). Eve has been active in the IETF/IRTF since 1992, cont"},{"i":"126088","n":"Ali Rezaki","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:sustain"],"c":1},{"i":"116484","n":"Jeferson Campos Nobre","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:nmrg"],"c":1},{"i":"143752","n":"Adisorn Lertsinsrubtavee","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:gaia"],"c":1},{"i":"128144","n":"Juan Andres Fraire","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:space"],"c":1},{"i":"11842","n":"Joerg Ott","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:space"],"c":1},{"i":"125662","n":"Ryo Yanagida","w":3,"o":["IRTF-RG"],"g":["IRTF-RG:icnrg"],"c":1,"b":"Ryo Yanagida is a lecturer at the University of St Andrews, School of Computer Science. He is also a a Honorary Research Fellow at the University of Glasgow, School of Computing Science.\r\n\r\nHis curren"},{"i":"116512","n":"Shwetha Bhandari","w":1,"o":["IETF-WG"],"g":["IETF-WG:6lo"],"c":1},{"i":"116338","n":"Timothy Winters","w":1,"o":["IETF-WG"],"g":["IETF-WG:dhc"],"c":1},{"i":"106173","n":"Stig Venaas","w":1,"o":["IETF-WG"],"g":["IETF-WG:pim"],"c":1},{"i":"3056","n":"Sue Hares","w":1,"o":["IETF-WG"],"g":["IETF-WG:idr"],"c":1},{"i":"105708","n":"Mike McBride","w":1,"o":["IETF-WG"],"g":["IETF-WG:pim"],"c":1},{"i":"2793","n":"Robert M. Hinden","w":1,"o":["IETF-WG"],"g":["IETF-WG:6man"],"c":1,"b":"Bob Hinden is the co-inventor of IPv6.  He is a Check Point Fellow at Check Point Software, co-chairs the IETF 6MAN IPv6 working group.  Bob Hinden was co-recipient of the 2008 IEEE Internet Award for"},{"i":"118407","n":"Lars Marcus Ihlar","w":1,"o":["IETF-WG"],"g":["IETF-WG:ippm"],"c":1},{"i":"110785","n":"Sarah Banks","w":1,"o":["IETF-WG"],"g":["IETF-WG:bmwg"],"c":1},{"i":"18587","n":"Brian Pawlowski","w":1,"o":["IETF-WG"],"g":["IETF-WG:nfsv4"],"c":1},{"i":"123662","n":"Benno Overeinder","w":1,"o":["IETF-WG"],"g":["IETF-WG:dnsop"],"c":1},{"i":"5376","n":"Russ Housley","w":1,"o":["IETF-WG"],"g":["IETF-WG:lamps","IETF-WG:plants","IETF-WG:stir","IETF-WG:sidrops"],"c":1,"b":"Russ Housley has worked in the computer and network security field since 1982, and he founded Vigil Security, LLC in September 2002. Russ served as the IETF Chair from March 2007 to March 2013.  Russ "},{"i":"105046","n":"Jeffrey Haas","w":1,"o":["IETF-WG"],"g":["IETF-WG:idr","IETF-WG:bfd"],"c":1},{"i":"106842","n":"Murray Kucherawy","w":1,"o":["IETF-WG"],"g":["IETF-WG:ianabis","IETF-WG:dkim","IETF-WG:drip","IETF-WG:emailcore","IETF-WG:mailmaint"],"c":1,"b":"Murray originated in Canada where he earned a Bachelor of Mathematics degree from the University of Waterloo in 1994.  He has spent his professional career working at Internet Service Providers and so"},{"i":"106315","n":"Greg Shepherd","w":1,"o":["IETF-WG"],"g":["IETF-WG:bier","IETF-WG:mboned"],"c":1},{"i":"104329","n":"Lenny Giuliano","w":1,"o":["IETF-WG"],"g":["IETF-WG:mboned"],"c":1},{"i":"121160","n":"Padma Pillay-Esnault","w":1,"o":["IETF-WG"],"g":["IETF-WG:tiptop","IETF-WG:lisp"],"c":1},{"i":"101923","n":"Jonathan Lennox","w":1,"o":["IETF-WG"],"g":["IETF-WG:avtcore"],"c":1},{"i":"15951","n":"Yoshifumi Nishida","w":1,"o":["IETF-WG"],"g":["IETF-WG:tcpm"],"c":1},{"i":"104140","n":"Ben Campbell","w":1,"o":["IETF-WG"],"g":["IETF-WG:stir"],"c":1,"b":"Ben Campbell is an independent consultant in the real-time communication industry and co-chair of the STIR working group. In the past, he has served on the IAB, as ART Area Director, and as chair for "},{"i":"108833","n":"Luigi Iannone","w":1,"o":["IETF-WG"],"g":["IETF-WG:lisp","IETF-WG:sidrops"],"c":1,"b":"Luigi Iannone is currently a researcher at Huawei Technologies France since 2020. He was formerly an  Associate Professor at Telecom Paris,  in Paris, between 2012 and 2020. He was previously Senior R"},{"i":"105857","n":"Hannes Tschofenig","w":1,"o":["IETF-WG"],"g":["IETF-WG:oauth"],"c":1,"b":"Hannes Tschofenig contributes to global standards to make the Internet more secure. He has been active in the IETF for the past 20 years and contributed to more than 90 RFCs on security, privacy and v"},{"i":"112901","n":"Tirumaleswar Reddy.K","w":1,"o":["IETF-WG"],"g":["IETF-WG:teep"],"c":1},{"i":"112548","n":"Kent Watsen","w":1,"o":["IETF-WG"],"g":["IETF-WG:netmod","IETF-WG:netconf"],"c":1,"b":"Industry Expert with 20 years of Commercial Development Experience.\r\n  - 15 years at Juniper Networks (Principal/Distinguished Engineer).\r\n  - 10 years with the Internet Engineering Task Force (IETF)."},{"i":"110932","n":"Oscar Gonzalez de Dios","w":1,"o":["IETF-WG"],"g":["IETF-WG:teas"],"c":1},{"i":"112237","n":"Sam Aldrin","w":1,"o":["IETF-WG"],"g":["IETF-WG:nvo3"],"c":1},{"i":"112131","n":"John Bradley","w":1,"o":["IETF-WG"],"g":["IETF-WG:jose"],"c":1},{"i":"120631","n":"Marco Tiloca","w":1,"o":["IETF-WG"],"g":["IETF-WG:core"],"c":1},{"i":"106618","n":"Bernie Volz","w":1,"o":["IETF-WG"],"g":["IETF-WG:dhc"],"c":1},{"i":"104695","n":"Michael Tuexen","w":1,"o":["IETF-WG"],"g":["IETF-WG:tcpm"],"c":1},{"i":"126104","n":"Chris Box","w":1,"o":["IETF-WG"],"g":["IETF-WG:dnssd"],"c":1,"b":"I've been building and running mobile internet service since 1999 with Orange UK. This was the first such service in the country, and we went on to do the first launches of 4G and 5G too, as EE (owned"},{"i":"108961","n":"Carles Gomez","w":1,"o":["IETF-WG"],"g":["IETF-WG:6lo"],"c":1},{"i":"115213","n":"Ines Robles","w":1,"o":["IETF-WG"],"g":["IETF-WG:roll"],"c":1},{"i":"104151","n":"Tony Przygienda","w":1,"o":["IETF-WG"],"g":["IETF-WG:bier"],"c":1},{"i":"11834","n":"Toerless T. Eckert","w":1,"o":["IETF-WG"],"g":["IETF-WG:anima"],"c":1,"b":"Biography"},{"i":"108054","n":"Sheng Jiang","w":1,"o":["IETF-WG"],"g":["IETF-WG:anima"],"c":1,"b":"Ph.D., Professor, the Beijing University of Posts and Telecommunication. He is currently chairing IETF ANIMA WG (Autonomic Networking Integrated Model and Approach). He is now mainly working on resear"},{"i":"115774","n":"Edward J. Birrane","w":1,"o":["IETF-WG"],"g":["IETF-WG:dtn","IETF-WG:tvr"],"c":1},{"i":"117656","n":"Rick Taylor","w":1,"o":["IETF-WG"],"g":["IETF-WG:dtn"],"c":1},{"i":"108894","n":"Fatai Zhang","w":1,"o":["IETF-WG"],"g":["IETF-WG:ccamp"],"c":1},{"i":"105785","n":"Nancy Cam-Winget","w":1,"o":["IETF-WG"],"g":["IETF-WG:seat","IETF-WG:scim","IETF-WG:teep"],"c":1},{"i":"114351","n":"Vishnu Pavan Beeram","w":1,"o":["IETF-WG"],"g":["IETF-WG:teas"],"c":1},{"i":"106745","n":"Yoav Nir","w":1,"o":["IETF-WG"],"g":["IETF-WG:acme","IETF-WG:ipsecme"],"c":1},{"i":"106444","n":"Reshad Rahman","w":1,"o":["IETF-WG"],"g":["IETF-WG:bfd","IETF-WG:nmop"],"c":1},{"i":"112405","n":"Jeff Tantsura","w":1,"o":["IETF-WG"],"g":["IETF-WG:rift","IETF-WG:rtgwg"],"c":1},{"i":"107172","n":"Bruno Decraene","w":1,"o":["IETF-WG"],"g":["IETF-WG:spring"],"c":1},{"i":"10064","n":"Lou Berger","w":1,"o":["IETF-WG"],"g":["IETF-WG:netmod","IETF-WG:detnet"],"c":1},{"i":"108573","n":"Juan Carlos Zuniga","w":1,"o":["IETF-WG"],"g":["IETF-WG:intarea"],"c":1,"b":"Juan Carlos Zuniga is a telecommunications expert with over 20 years of international experience. He is a Distinguished Engineer at Cisco, working for the Global Technical Standards team. \r\n\r\nHe is cu"},{"i":"108213","n":"Julien Meuric","w":1,"o":["IETF-WG"],"g":["IETF-WG:pce"],"c":1},{"i":"120845","n":"tale","w":1,"o":["IETF-WG"],"g":["IETF-WG:add"],"c":1},{"i":"107190","n":"Spencer Dawkins","w":1,"o":["IETF-WG"],"g":["IETF-WG:cellar"],"c":1,"b":"Spencer currently serves as co-chair for the CELLAR working group in the Applications and Real-Time Area.\r\n\r\nSpencer previously served on the Internet Architecture Board from 2010 to 2013, when he mov"},{"i":"118406","n":"Sanjay Mishra","w":1,"o":["IETF-WG"],"g":["IETF-WG:cdni"],"c":1,"b":"Telecommunications Engineer with expertise in systems development for telecommunications networks and network systems architecture supporting enterprise and public networks  delivering data and video "},{"i":"2783","n":"James Galvin","w":1,"o":["IETF-WG"],"g":["IETF-WG:regext"],"c":1},{"i":"114834","n":"Antoin Verschuren","w":1,"o":["IETF-WG"],"g":["IETF-WG:regext"],"c":1},{"i":"18621","n":"Randall Gellens","w":1,"o":["IETF-WG"],"g":["IETF-WG:ecrit"],"c":1},{"i":"109969","n":"Daniel Migault","w":1,"o":["IETF-WG"],"g":["IETF-WG:drip","IETF-WG:calext"],"c":1},{"i":"123491","n":"Seth Blank","w":1,"o":["IETF-WG"],"g":["IETF-WG:dmarc"],"c":1},{"i":"110121","n":"Tero Kivinen","w":1,"o":["IETF-WG"],"g":["IETF-WG:ipsecme"],"c":1},{"i":"111614","n":"Daniel Kahn Gillmor","w":1,"o":["IETF-WG"],"g":["IETF-WG:openpgp","IETF-WG:secdispatch"],"c":1},{"i":"126292","n":"Joey Salazar","w":1,"o":["IETF-WG"],"g":["IETF-WG:dance"],"c":1},{"i":"117988","n":"Benjamin M. Schwartz","w":1,"o":["IETF-WG"],"g":["IETF-WG:privacypass","IETF-WG:ppm"],"c":1},{"i":"21684","n":"Barry Leiba","w":1,"o":["IETF-WG"],"g":["IETF-WG:dmarc","IETF-WG:cbor"],"c":1,"b":"Barry Leiba has been a Director of Internet Standards at Futurewei Technologies since 2009.  Before that he was a Senior Technical Staff Member at IBM's Research Division, and worked for IBM since 197"},{"i":"116337","n":"Yingzhen Qu","w":1,"o":["IETF-WG"],"g":["IETF-WG:rtgwg","IETF-WG:lsr"],"c":1,"b":"Yingzhen Qu is a Distinguished Engineer at Futurewei Technologies, USA. She began participating in the IETF in 2015 while working at Cisco Systems, where she focused on networking technologies and rou"},{"i":"102254","n":"Michael Richardson","w":1,"o":["IETF-WG"],"g":["IETF-WG:asdf"],"c":1,"b":"Michael Richardson is an open source and open standards consultant.\r\nAn autodidact, he wrote mail transfer agents as a teenager, and in the\r\n1990s, found his calling designing and building embedded ne"},{"i":"110966","n":"Zhaohui (Jeffrey) Zhang","w":1,"o":["IETF-WG"],"g":["IETF-WG:rift","IETF-WG:bess"],"c":1},{"i":"114978","n":"Satoru Matsushima","w":1,"o":["IETF-WG"],"g":["IETF-WG:dmm"],"c":1},{"i":"122671","n":"Bron Gondwana","w":1,"o":["IETF-WG"],"g":["IETF-WG:calext","IETF-WG:jmap"],"c":1,"b":"CEO at `Fastmail\r\n<https://www.fastmail.com/>`_.\r\n\r\nHave been involved in email for about 20 years, and am currently co-chair of the IETF working groups `CALEXT <https://datatracker.ietf.org/group/cal"},{"i":"106199","n":"Wassim Haddad","w":1,"o":["IETF-WG"],"g":["IETF-WG:intarea"],"c":1},{"i":"106987","n":"Brian Rosen","w":1,"o":["IETF-WG"],"g":["IETF-WG:vcon","IETF-WG:sipcore"],"c":1},{"i":"21144","n":"Ned Smith","w":1,"o":["IETF-WG"],"g":["IETF-WG:rats"],"c":1,"b":"Ned Smith currently chairs the Remote Attestation Procedures (RATS) working group. He was a security architect for Intel\u00ae vPro\u2122 and related security technologies. He developed the Open Connectivity Fo"},{"i":"111355","n":"Rifaat Shekh-Yusef","w":1,"o":["IETF-WG"],"g":["IETF-WG:webbotauth","IETF-WG:secdispatch","IETF-WG:oauth"],"c":1},{"i":"113086","n":"Joe Clarke","w":1,"o":["IETF-WG"],"g":["IETF-WG:opsawg"],"c":1},{"i":"103686","n":"Valery Smyslov","w":1,"o":["IETF-WG"],"g":["IETF-WG:radext","IETF-WG:uta"],"c":1},{"i":"117609","n":"Kevin J. Ma","w":1,"o":["IETF-WG"],"g":["IETF-WG:cdni"],"c":1},{"i":"118295","n":"Janos Farkas","w":1,"o":["IETF-WG"],"g":["IETF-WG:detnet"],"c":1},{"i":"10784","n":"Acee Lindem","w":1,"o":["IETF-WG"],"g":["IETF-WG:lsvr","IETF-WG:lsr"],"c":1},{"i":"22933","n":"Christian Hopps","w":1,"o":["IETF-WG"],"g":["IETF-WG:lsr"],"c":1},{"i":"113838","n":"Stephane Litkowski","w":1,"o":["IETF-WG"],"g":["IETF-WG:bess"],"c":1},{"i":"101208","n":"Joseph A. Salowey","w":1,"o":["IETF-WG"],"g":["IETF-WG:emu","IETF-WG:tls","IETF-WG:privacypass"],"c":1},{"i":"19483","n":"Sean Turner","w":1,"o":["IETF-WG"],"g":["IETF-WG:dult","IETF-WG:wish","IETF-WG:tls","IETF-WG:mls"],"c":1,"b":"Sean has been involved in the IETF since IETF 34 and has authored or co-authored over 50 RFCs. From March 2007 to March 2014, Sean served on the IESG as the IETF Security Area Director.  Over the year"},{"i":"124538","n":"Tim Hollebeek","w":1,"o":["IETF-WG"],"g":["IETF-WG:ace","IETF-WG:lamps"],"c":1},{"i":"122861","n":"Christian Amsuess","w":1,"o":["IETF-WG"],"g":["IETF-WG:cbor"],"c":1,"b":"Christian Ams\u00fcss has been an active member of different Free Software communities since 2005, and working independently in the areas of software development, network architecture and IoT consulting si"},{"i":"4061","n":"Peter E. Yee","w":1,"o":["IETF-WG"],"g":["IETF-WG:emu"],"c":1},{"i":"126082","n":"Matt Joras","w":1,"o":["IETF-WG"],"g":["IETF-WG:quic"],"c":1,"b":"Software engineer primarily involved with transport development (QUIC and TCP)."},{"i":"126874","n":"Darrel Miller","w":1,"o":["IETF-WG"],"g":["IETF-WG:httpapi"],"c":1},{"i":"104851","n":"Kathleen Moriarty","w":1,"o":["IETF-WG"],"g":["IETF-WG:rats"],"c":1,"b":"Kathleen Moriarty is the Chief Technology Officer for the Center of Internet Security. She served as the IETF Security Area Director March 2014-2018, and was the Global Lead Security Architect with th"},{"i":"121191","n":"Jim Fenton","w":1,"o":["IETF-WG"],"g":["IETF-WG:jmap","IETF-WG:dispatch"],"c":1},{"i":"123715","n":"Ivaylo Petrov","w":1,"o":["IETF-WG"],"g":["IETF-WG:cose"],"c":1},{"i":"116516","n":"Tarek Saad","w":1,"o":["IETF-WG"],"g":["IETF-WG:mpls"],"c":1},{"i":"109223","n":"Leslie Daigle","w":1,"o":["IETF-WG"],"g":["IETF-WG:mops","IETF-WG:procon"],"c":1},{"i":"114404","n":"Malisa Vucinic","w":1,"o":["IETF-WG"],"g":["IETF-WG:lake"],"c":1,"b":"Mali\u0161a Vu\u010dini\u0107 is a Research Scientist with the AIO team of the Inria research institute in Paris, France. He received the Engineering degree from the University of Montenegro in 2010, the joint Maste"},{"i":"101641","n":"Sri Gundavelli","w":1,"o":["IETF-WG"],"g":["IETF-WG:dmm"],"c":1},{"i":"122416","n":"Loganaden Velvindron","w":1,"o":["IETF-WG"],"g":["IETF-WG:ace"],"c":1,"b":"I am one of the founding members of cyberstorm.mu which is a group dedicated to the design & implementation of IETF Internet Drafts and RFCs in Open Source software. I have also been involved with ISO"},{"i":"108279","n":"Martin Vigoureux","w":1,"o":["IETF-WG"],"g":["IETF-WG:gendispatch"],"c":1,"b":"Martin Vigoureux is a former Area Director for the Routing Area of the IETF (2018-2021). Previously, he chaired the L3VPN, BESS, and SPRING Working Groups, and had started as Secretary of the MPLS WG."},{"i":"116218","n":"Glenn Deen","w":1,"o":["IETF-WG"],"g":["IETF-WG:add"],"c":1,"b":"Glenn Deen is a Fellow at Comcast-NBCUniversal.  \r\n\r\nHe\u2019s been active in a variety of standards development and organizations for many years including the IETF, W3C, SMPTE, and SVTA.  His first IETF w"},{"i":"120813","n":"Don Fedyk","w":1,"o":["IETF-WG"],"g":["IETF-WG:manet"],"c":1},{"i":"122637","n":"Shuping Peng","w":1,"o":["IETF-WG"],"g":["IETF-WG:gendispatch","IETF-WG:dispatch"],"c":1,"b":"Shuping Peng works at Huawei Terminal CTO. She led Huawei Datacom Protocol Standards Team, working with customers, industry partners, and academics to develop technologies for enhancing the Internet. "},{"i":"113152","n":"Jaime Jimenez","w":1,"o":["IETF-WG"],"g":["IETF-WG:core"],"c":1,"b":"https://jaime.win/about/"},{"i":"3862","n":"Joel M. Halpern","w":1,"o":["IETF-WG"],"g":["IETF-WG:savnet","IETF-WG:spring"],"c":1},{"i":"104971","n":"Keyur Patel","w":1,"o":["IETF-WG"],"g":["IETF-WG:idr"],"c":1},{"i":"18427","n":"Rich Salz","w":1,"o":["IETF-WG"],"g":["IETF-WG:httpapi"],"c":1,"b":"I first got involved with the IETF back when I worked at BBN, reading the Privacy-Enhanced Mail (PEM) internet-drafts; my first acknowledgement was in RFC 2616. Over time, I become more involved in th"},{"i":"117723","n":"Henk Birkholz","w":1,"o":["IETF-WG"],"g":["IETF-WG:iotops"],"c":1},{"i":"122998","n":"Nils Ohlmeier","w":1,"o":["IETF-WG"],"g":["IETF-WG:wish"],"c":1,"b":"Started IETF work with SIP at the 63rd IETF meeting. Have been working on real time communication ever since.\r\nEarly career was on SIP and RTP in the early VoIP days. Contributed to Firefox WebRTC imp"},{"i":"122812","n":"Lucas Pardue","w":1,"o":["IETF-WG"],"g":["IETF-WG:quic","IETF-WG:webtrans"],"c":1,"b":"I like transport and application protocols."},{"i":"110077","n":"Alissa Cooper","w":1,"o":["IETF-WG"],"g":["IETF-WG:mimi"],"c":1,"b":"Alissa Cooper is the Executive Director of the Knight-Georgetown Institute (KGI). Based at Georgetown University in Washington, DC, KGI translates research about information technology and the online "},{"i":"112922","n":"Luis M. Contreras","w":1,"o":["IETF-WG"],"g":["IETF-WG:ccamp"],"c":1,"b":"Luis M. Contreras holds an M.Sc. in Telecommunications, an M. Sc. in Telematics, and a Ph.D. in Telematics. In 1997 he joined Alcatel Spain taking several positions (R&D, standardization, product deve"},{"i":"136779","n":"Michael B. Jones","w":1,"o":["IETF-WG"],"g":["IETF-WG:cose"],"c":1,"b":"Building the Internet's missing identity layer"},{"i":"120879","n":"Ronald in 't Velt","w":1,"o":["IETF-WG"],"g":["IETF-WG:manet"],"c":1},{"i":"113285","n":"XiPeng Xiao","w":1,"o":["IETF-WG"],"g":["IETF-WG:v6ops"],"c":1,"b":"Dr. Xipeng Xiao is a network engineer and standards contributor with experience spanning operators and vendors since 1998. He is now based in Germany with Huawei, working closely with European operato"},{"i":"5778","n":"Harald T. Alvestrand","w":1,"o":["IETF-WG"],"g":["IETF-WG:mediaman"],"c":1,"b":"Former AD and IETF chair.\r\n\r\nOther contact methods:\r\nemail: harald@alvestrand.no\r\ngithub: github.com/alvestrand"},{"i":"117099","n":"Wes Hardaker","w":1,"o":["IETF-WG"],"g":["IETF-WG:dance","IETF-WG:satp"],"c":1,"b":"Wes Hardaker works for Google's Internet Evangelism Team, where his primary mission is to simply make the Internet better. He is actively involved as an affiliate researcher with USC/ISI and is helpin"},{"i":"122973","n":"Aaron Parecki","w":1,"o":["IETF-WG"],"g":["IETF-WG:scim"],"c":1},{"i":"20106","n":"Sam Weiler","w":1,"o":["IETF-WG"],"g":["IETF-WG:ppm"],"c":1},{"i":"113536","n":"Christopher Inacio","w":1,"o":["IETF-WG"],"g":["IETF-WG:scitt","IETF-WG:nfsv4"],"c":1},{"i":"10083","n":"Paul E. Hoffman","w":1,"o":["IETF-WG"],"g":["IETF-WG:pquip","IETF-WG:cbor"],"c":1},{"i":"119947","n":"Margaret Cullen","w":1,"o":["IETF-WG"],"g":["IETF-WG:radext"],"c":1},{"i":"4475","n":"Tony Li","w":1,"o":["IETF-WG"],"g":["IETF-WG:mpls","IETF-WG:tvr"],"c":1},{"i":"132080","n":"Claire Facer","w":1,"o":["IETF-WG"],"g":["IETF-WG:satp"],"c":1},{"i":"128974","n":"Tim Geoghegan","w":1,"o":["IETF-WG"],"g":["IETF-WG:mimi"],"c":1},{"i":"125565","n":"Peng Liu","w":1,"o":["IETF-WG"],"g":["IETF-WG:cats"],"c":1},{"i":"104198","n":"Adrian Farrel","w":1,"o":["IETF-WG"],"g":["IETF-WG:mpls","IETF-WG:cats"],"c":1},{"i":"131585","n":"Jon Geater","w":1,"o":["IETF-WG"],"g":["IETF-WG:scitt"],"c":1},{"i":"115214","n":"Benjamin Kaduk","w":1,"o":["IETF-WG"],"g":["IETF-WG:kitten"],"c":1,"b":"Benjamin Kaduk is a Principal Architect at Akamai Technologies where his work focuses on improving and ensuring system reliability across the company.  Past work has included secure communication tech"},{"i":"135507","n":"David Vernet","w":1,"o":["IETF-WG"],"g":["IETF-WG:bpf"],"c":1},{"i":"124846","n":"Eric Kinnear","w":1,"o":["IETF-WG"],"g":["IETF-WG:ccwg","IETF-WG:happy"],"c":1},{"i":"127495","n":"Qiufang Ma","w":1,"o":["IETF-WG"],"g":["IETF-WG:ivy"],"c":1},{"i":"102391","n":"Donald E. Eastlake 3rd","w":1,"o":["IETF-WG"],"g":["IETF-WG:manet"],"c":1,"b":"Donald Eastlake was recently a Principal Engineer with Futurewei\r\nTechnologies working on advanced network product standards and\r\nresearch. He previously worked for Cisco on the Cisco Network\r\nRegistr"},{"i":"138186","n":"Greg Maxwell","w":1,"o":["IETF-WG"],"g":["IETF-WG:mlcodec"],"c":1},{"i":"115824","n":"Pascal Thubert","w":1,"o":["IETF-WG"],"g":["IETF-WG:schc"],"c":1,"b":"Pascal Thubert has been actively involved in research, development and standards efforts on Internet mobility, cloud, and wireless technologies. Pascal co authored 2 IETF routing protocols, RPL and RI"},{"i":"119881","n":"Alexander Pelov","w":1,"o":["IETF-WG"],"g":["IETF-WG:schc"],"c":1,"b":"Alexander is Associate Professor at the French graduate engineering school IMT Atlantique. He was the CEO/CTO and co-founder of ACKLIO. After studies in Bulgaria, obtaining his MsC in University de Pr"},{"i":"109703","n":"Daniele Ceccarelli","w":1,"o":["IETF-WG"],"g":["IETF-WG:ivy","IETF-WG:ccamp"],"c":1},{"i":"118908","n":"Giuseppe Fioccola","w":1,"o":["IETF-WG"],"g":["IETF-WG:bmwg"],"c":1},{"i":"116331","n":"Mo Zanaty","w":1,"o":["IETF-WG"],"g":["IETF-WG:mlcodec"],"c":1},{"i":"4857","n":"Karen O'Donoghue","w":1,"o":["IETF-WG"],"g":["IETF-WG:jose","IETF-WG:ntp"],"c":1},{"i":"130357","n":"Dennis Jackson","w":1,"o":["IETF-WG"],"g":["IETF-WG:masque"],"c":1},{"i":"129653","n":"Deirdre Connolly","w":1,"o":["IETF-WG"],"g":["IETF-WG:tls"],"c":1},{"i":"104755","n":"Darren Dukes","w":1,"o":["IETF-WG"],"g":["IETF-WG:snac"],"c":1},{"i":"128259","n":"Nick Buraglio","w":1,"o":["IETF-WG"],"g":["IETF-WG:v6ops"],"c":1,"b":"Nick has been involved in networking since 1997, primarily focused on service provider networking and large scale, high performance networking. Nick has been employed by regional Internet Service Prov"},{"i":"110737","n":"Jie Dong","w":1,"o":["IETF-WG"],"g":["IETF-WG:lsvr"],"c":1},{"i":"138801","n":"Erica Olsen","w":1,"o":["IETF-WG"],"g":["IETF-WG:dult"],"c":1},{"i":"120587","n":"Chris Wendt","w":1,"o":["IETF-WG"],"g":["IETF-WG:vcon"],"c":1},{"i":"105682","n":"Benoit Claise","w":1,"o":["IETF-WG"],"g":["IETF-WG:nmop","IETF-WG:opsawg"],"c":1},{"i":"128715","n":"Prachi Jain","w":1,"o":["IETF-WG"],"g":["IETF-WG:keytrans"],"c":1},{"i":"124964","n":"Chris Lemmons","w":1,"o":["IETF-WG"],"g":["IETF-WG:cdni"],"c":1},{"i":"125657","n":"Akira Tsukamoto","w":1,"o":["IETF-WG"],"g":["IETF-WG:suit"],"c":1},{"i":"128503","n":"Pieter Kasselman","w":1,"o":["IETF-WG"],"g":["IETF-WG:wimse"],"c":1,"b":"Pieter has over 25 years' experience as a technologist and engineer, working on bringing new technologies to market. Pieter worked in a number of roles as a cryptographer, information security analyst"},{"i":"112051","n":"Justin Richer","w":1,"o":["IETF-WG"],"g":["IETF-WG:wimse"],"c":1,"b":"Justin Richer is a security architect, software engineer, standards editor, and systems designer with over two decades of industry experience. He is the lead author of the book \"OAuth2 In Action\" and "},{"i":"127714","n":"Per Andersson","w":1,"o":["IETF-WG"],"g":["IETF-WG:netconf"],"c":1},{"i":"106541","n":"Martin Duke","w":1,"o":["IETF-WG"],"g":["IETF-WG:moq","IETF-WG:tsvwg"],"c":1,"b":"Martin Duke has been Media Over Quic (MOQ) chair since 2024. He was Transport Area Director from 2020-24 and heavily involved in replacing it with the Web and Internet Transport (WIT) Area. He has bee"},{"i":"123983","n":"Remous-Aris Koutsiamanis","w":1,"o":["IETF-WG"],"g":["IETF-WG:roll"],"c":1},{"i":"133904","n":"Arnt Gulbrandsen","w":1,"o":["IETF-WG"],"g":["IETF-WG:sml"],"c":1},{"i":"100664","n":"Brian Haberman","w":1,"o":["IETF-WG"],"g":["IETF-WG:deleg"],"c":1},{"i":"20778","n":"Duane Wessels","w":1,"o":["IETF-WG"],"g":["IETF-WG:deleg"],"c":1},{"i":"135384","n":"Alexander Jonathan Stein","w":1,"o":["IETF-WG"],"g":["IETF-WG:mediaman"],"c":1,"b":"A.J. is a cybersecurity professional that has experience with private sector, education, defense, and government customers, both in the United States and internationally. He likes open data, open sour"},{"i":"113580","n":"Weiqiang Cheng","w":1,"o":["IETF-WG"],"g":["IETF-WG:srv6ops"],"c":1,"b":"Weiqiang Cheng serves as the Chief Architect of IP Networks at China Mobile Research Institute."},{"i":"107131","n":"Martin Thomson","w":1,"o":["IETF-WG"],"g":["IETF-WG:hpke","IETF-WG:spice"],"c":1,"b":"Martin Thomson is an engineer at Mozilla."},{"i":"113431","n":"Heather Flanagan","w":1,"o":["IETF-WG"],"g":["IETF-WG:spice"],"c":1,"b":"Heather Flanagan is Principal of Spherical Cow Consulting, where she advises organizations on digital identity, Internet governance, and standards development strategy. She previously served as RFC Se"},{"i":"104343","n":"Kenneth Murchison","w":1,"o":["IETF-WG"],"g":["IETF-WG:mailmaint"],"c":1},{"i":"108624","n":"Alan DeKok","w":1,"o":["IETF-WG"],"g":["IETF-WG:uta"],"c":1,"b":"Alan has a background in farming and particle physics.  As neither activity paid well, he got into computers.  After spending some time working on an embedded real-time operating system for the 6809, "},{"i":"117844","n":"Diego Lopez","w":1,"o":["IETF-WG"],"g":["IETF-WG:green"],"c":1},{"i":"119066","n":"Robert Wilton","w":1,"o":["IETF-WG"],"g":["IETF-WG:green"],"c":1,"b":"Rob Wilton works for Cisco in the Mass-scale Infrastructure Group. Rob has over 20 years of experience working for Cisco in software development for the Service Provider platforms (IOS XR), particular"},{"i":"104294","n":"Magnus Westerlund","w":1,"o":["IETF-WG"],"g":["IETF-WG:moq"],"c":1,"b":"Magnus Westerlund is a Master Researcher at Ericsson Research\r\nbased in Stockholm, Sweden. He has worked on developing solutions and \r\nstandards for streaming media and real-time conversational servic"},{"i":"104557","n":"Jon Peterson","w":1,"o":["IETF-WG"],"g":["IETF-WG:modpod"],"c":1,"b":"Jon Peterson served as a director of the IETF's Transport Area (2003-2006) and the Real-Time Applications and Infrastructure Area (2006-2009), and subsequently on the Internet Architecture Board (2009"},{"i":"22971","n":"Lisa M. Dusseault","w":1,"o":["IETF-WG"],"g":["IETF-WG:ocm","IETF-WG:modpod"],"c":1},{"i":"123600","n":"Florian Obser","w":1,"o":["IETF-WG"],"g":["IETF-WG:dnssd"],"c":1,"b":"Florian has over two decades of experience running authoritative DNS\r\nservers. Anything from simple two server deployments to globe-spanning\r\nanycast constellations with hundreds of nodes.\r\n\r\nFlorian "},{"i":"125765","n":"David Lou","w":1,"o":["IETF-WG"],"g":["IETF-WG:snac"],"c":1},{"i":"127927","n":"Brandon Abley","w":1,"o":["IETF-WG"],"g":["IETF-WG:ecrit"],"c":1},{"i":"143542","n":"Jacqueline McCall","w":1,"o":["IETF-WG"],"g":["IETF-WG:suit"],"c":1},{"i":"117846","n":"Dan Voyer","w":1,"o":["IETF-WG"],"g":["IETF-WG:srv6ops"],"c":1},{"i":"125623","n":"Thomas Graf","w":1,"o":["IETF-WG"],"g":["IETF-WG:ippm"],"c":1,"b":"Stuck with service providers since 1997. Rediscovered networks in 2015 with Network Analytics. The backseat driver of the Swisscom Daisy team with network, software and data engineering enthusiasts re"},{"i":"140327","n":"Renzo Navas","w":1,"o":["IETF-WG"],"g":["IETF-WG:lake"],"c":1},{"i":"103961","n":"Robert Sparks","w":1,"o":["IETF-WG"],"g":["IETF-WG:cellar"],"c":1,"b":"Robert Sparks is the Senior Director of Information Technology for the IETF LLC and leads IETF Tools development. He is a co-chair of the CELLAR working group, and is a past-chair of the STIR, SIMPLE,"},{"i":"18321","n":"Pete Resnick","w":1,"o":["IETF-WG"],"g":["IETF-WG:dkim"],"c":1},{"i":"106461","n":"Tim Chown","w":1,"o":["IETF-WG"],"g":["IETF-WG:happy"],"c":1,"b":"I'm network development manager at Jisc, the organisation that operates the UK's national research and education network, Janet. My current interests and responsibilities lie around network monitoring"},{"i":"137632","n":"Lorenzo Corneo","w":1,"o":["IETF-WG"],"g":["IETF-WG:asdf"],"c":1},{"i":"124189","n":"Marten Seemann","w":1,"o":["IETF-WG"],"g":["IETF-WG:masque"],"c":1},{"i":"139474","n":"Gavin Brown","w":1,"o":["IETF-WG"],"g":["IETF-WG:rpp"],"c":1,"b":"Gavin Brown has 25 years' experience in the DNS and domain name industries, having spent 22 years at Team Internet PLC (formerly CentralNic), 14 of which were as CTO. He now works for ICANN."},{"i":"113569","n":"Marco Davids","w":1,"o":["IETF-WG"],"g":["IETF-WG:rpp"],"c":1,"b":"Marco Davids is a Senior Research Engineer at SIDN, the registry responsible for the Dutch country-code top-level domain (.nl). He joined the organization in 2007 and later became part of SIDN Labs, t"},{"i":"108554","n":"Paul Kyzivat","w":1,"o":["IETF-WG"],"g":["IETF-WG:sipcore"],"c":1},{"i":"110721","n":"Ted Hardie","w":1,"o":["IETF-WG"],"g":["IETF-WG:ianabis"],"c":1,"b":"Ted Hardie  started work in the Internet field at SRI and has since had leadership roles at the NASA Science Internet project, Equinix, Nominum, Qualcomm, Panasonic Research, Cisco, and Google.  He wa"},{"i":"111303","n":"Job Snijders","w":1,"o":["IETF-WG"],"g":["IETF-WG:sshm","IETF-WG:grow"],"c":1,"b":"Job Snijders provides consultancy on the design and implementation of reliable and scalable security solutions for the global Internet routing system. Job offers world-renowned expertise in Resource P"},{"i":"133599","n":"Nidhi Jaju","w":1,"o":["IETF-WG"],"g":["IETF-WG:webtrans"],"c":1},{"i":"129844","n":"Marius Kleidl","w":1,"o":["IETF-WG"],"g":["IETF-WG:avtcore"],"c":1},{"i":"109753","n":"Zaheduzzaman Sarker","w":1,"o":["IETF-WG"],"g":["IETF-WG:tiptop","IETF-WG:tsvwg"],"c":1,"b":"Zaheduzzaman Sarker works at Nokia as Chief Architect for Transport Networks. His interest includes Internet and protocol evolutions, web technologies and network architecture. He has a long history o"},{"i":"115739","n":"Paolo Lucente","w":1,"o":["IETF-WG"],"g":["IETF-WG:grow"],"c":1},{"i":"140229","n":"Yaroslav Rosomakho","w":1,"o":["IETF-WG"],"g":["IETF-WG:hpke","IETF-WG:seat"],"c":1,"b":"Yaroslav Rosomakho is Chief Scientist at Zscaler, focusing on Internet-scale security architecture, protocol design, and the adoption of emerging technologies to address evolving business challenges. "},{"i":"110414","n":"Ondrej Sury","w":1,"o":["IETF-WG"],"g":["IETF-WG:dnsop"],"c":1,"b":"A DNS Person"},{"i":"129485","n":"Rohan Mahy","w":1,"o":["IETF-WG"],"g":["IETF-WG:diem"],"c":1},{"i":"126651","n":"Tommy Jensen","w":1,"o":["IETF-WG"],"g":["IETF-WG:diem"],"c":1,"b":"Tommy Jensen has actively participated in the IETF since 2019, mostly on discovery and usage of encrypted DNS, deployment of IPv6, and advocacy for Digital Emblems. He previously worked for eight year"},{"i":"131350","n":"Jorge Cano","w":1,"o":["IETF-WG"],"g":["IETF-WG:regext"],"c":1},{"i":"119562","n":"David Schinazi","w":1,"o":["IETF-WG"],"g":["IETF-WG:webbotauth"],"c":1,"b":"David Schinazi is a senior staff software engineer and senior manager at Google. He currently works primarily as the technical lead and manager for Google's Privacy Proxy, MASQUE, and OHTTP efforts. D"},{"i":"21072","n":"Jari Arkko","w":1,"o":["IETF-WG"],"g":["IETF-WG:procon"],"c":1,"b":"Jari Arkko is a Senior Expert with Ericsson Research. He has worked on routers, Internet technology, software development tools, cellular networks, security protocols, radio sensing, and AI. He likes "},{"i":"124414","n":"Mike Ounsworth","w":1,"o":["IETF-WG"],"g":["IETF-WG:acme"],"c":1},{"i":"101568","n":"Ron Bonica","w":1,"o":["IETF-WG"],"g":["IETF-WG:savnet"],"c":1,"b":"Ron Bonica has participated in the IETF since 1998. His areas of expertise include IP Routing, IPv6, Operational Security and network operations.\r\n\r\nRon lives in Northern Virginia. He enjoys yoga, and"},{"i":"127983","n":"Peter Thomassen","w":1,"o":["IETF-WG"],"g":["IETF-WG:dconn"],"c":1,"b":"Peter Thomassen is the founder and Chief Technology Officer of deSEC, a free, managed DNSSEC hosting platform. It is deSEC's mission to enhance the security of online data transmission, by spreading t"},{"i":"128117","n":"Hans-Joerg Happel","w":1,"o":["IETF-WG"],"g":["IETF-WG:dconn"],"c":1},{"i":"134139","n":"Thibault Meunier","w":1,"o":["IETF-WG"],"g":["IETF-WG:ocm"],"c":1},{"i":"139514","n":"Michael P","w":1,"o":["IETF-WG"],"g":["IETF-WG:jose"],"c":1},{"i":"128517","n":"Thom Wiggers","w":1,"o":["IETF-WG"],"g":["IETF-WG:plants"],"c":1},{"i":"113902","n":"Dieter Sibold","w":1,"o":["IETF-WG"],"g":["IETF-WG:ntp"],"c":1},{"i":"132297","n":"Joe Mandel","w":1,"o":["IETF-WG"],"g":["IETF-WG:ediint"],"c":1},{"i":"19869","n":"Marc Blanchet","w":1,"o":["IETF-WG"],"g":["IETF-WG:ediint"],"c":1}],"l":[{"s":"106412","t":"123703","w":1},{"s":"105815","t":"106412","w":1},{"s":"106412","t":"119325","w":1},{"s":"105791","t":"106412","w":1},{"s":"106412","t":"140639","w":1},{"s":"105721","t":"106412","w":1},{"s":"106412","t":"112751","w":1},{"s":"106412","t":"111656","w":1},{"s":"106412","t":"111477","w":1},{"s":"105786","t":"106412","w":1},{"s":"106412","t":"108756","w":1},{"s":"106412","t":"125944","w":1},{"s":"106412","t":"112330","w":1},{"s":"106412","t":"109802","w":1},{"s":"106412","t":"107154","w":1},{"s":"103881","t":"106412","w":2},{"s":"105815","t":"123703","w":2},{"s":"119325","t":"123703","w":2},{"s":"105791","t":"123703","w":1},{"s":"123703","t":"140639","w":1},{"s":"105721","t":"123703","w":1},{"s":"112751","t":"123703","w":1},{"s":"111656","t":"123703","w":1},{"s":"111477","t":"123703","w":1},{"s":"105786","t":"123703","w":2},{"s":"108756","t":"123703","w":2},{"s":"123703","t":"125944","w":1},{"s":"112330","t":"123703","w":1},{"s":"109802","t":"123703","w":1},{"s":"107154","t":"123703","w":1},{"s":"103881","t":"123703","w":1},{"s":"105815","t":"119325","w":2},{"s":"105791","t":"105815","w":1},{"s":"105815","t":"140639","w":1},{"s":"105721","t":"105815","w":1},{"s":"105815","t":"112751","w":1},{"s":"105815","t":"111656","w":1},{"s":"105815","t":"111477","w":1},{"s":"105786","t":"105815","w":2},{"s":"105815","t":"108756","w":2},{"s":"105815","t":"125944","w":1},{"s":"105815","t":"112330","w":1},{"s":"105815","t":"109802","w":1},{"s":"105815","t":"107154","w":1},{"s":"103881","t":"105815","w":1},{"s":"105791","t":"119325","w":1},{"s":"119325","t":"140639","w":1},{"s":"105721","t":"119325","w":1},{"s":"112751","t":"119325","w":1},{"s":"111656","t":"119325","w":1},{"s":"111477","t":"119325","w":1},{"s":"105786","t":"119325","w":2},{"s":"108756","t":"119325","w":2},{"s":"119325","t":"125944","w":1},{"s":"112330","t":"119325","w":1},{"s":"109802","t":"119325","w":1},{"s":"107154","t":"119325","w":1},{"s":"103881","t":"119325","w":2},{"s":"105791","t":"140639","w":1},{"s":"105721","t":"105791","w":1},{"s":"105791","t":"112751","w":1},{"s":"105791","t":"111656","w":1},{"s":"105791","t":"111477","w":1},{"s":"105786","t":"105791","w":1},{"s":"105791","t":"108756","w":1},{"s":"105791","t":"125944","w":1},{"s":"105791","t":"112330","w":1},{"s":"105791","t":"109802","w":1},{"s":"105791","t":"107154","w":1},{"s":"103881","t":"105791","w":1},{"s":"105721","t":"140639","w":1},{"s":"112751","t":"140639","w":1},{"s":"111656","t":"140639","w":1},{"s":"111477","t":"140639","w":1},{"s":"105786","t":"140639","w":1},{"s":"108756","t":"140639","w":1},{"s":"125944","t":"140639","w":1},{"s":"112330","t":"140639","w":1},{"s":"109802","t":"140639","w":1},{"s":"107154","t":"140639","w":1},{"s":"103881","t":"140639","w":1},{"s":"105721","t":"112751","w":1},{"s":"105721","t":"111656","w":1},{"s":"105721","t":"111477","w":1},{"s":"105721","t":"105786","w":1},{"s":"105721","t":"108756","w":1},{"s":"105721","t":"125944","w":1},{"s":"105721","t":"112330","w":1},{"s":"105721","t":"109802","w":1},{"s":"105721","t":"107154","w":1},{"s":"103881","t":"105721","w":1},{"s":"111656","t":"112751","w":1},{"s":"111477","t":"112751","w":1},{"s":"105786","t":"112751","w":1},{"s":"108756","t":"112751","w":1},{"s":"112751","t":"125944","w":1},{"s":"112330","t":"112751","w":1},{"s":"109802","t":"112751","w":1},{"s":"107154","t":"112751","w":1},{"s":"103881","t":"112751","w":1},{"s":"111477","t":"111656","w":1},{"s":"105786","t":"111656","w":1},{"s":"108756","t":"111656","w":1},{"s":"111656","t":"125944","w":1},{"s":"111656","t":"112330","w":1},{"s":"109802","t":"111656","w":1},{"s":"107154","t":"111656","w":1},{"s":"103881","t":"111656","w":1},{"s":"105786","t":"111477","w":1},{"s":"108756","t":"111477","w":1},{"s":"111477","t":"125944","w":1},{"s":"111477","t":"112330","w":1},{"s":"109802","t":"111477","w":1},{"s":"107154","t":"111477","w":1},{"s":"103881","t":"111477","w":1},{"s":"105786","t":"108756","w":2},{"s":"105786","t":"125944","w":1},{"s":"105786","t":"112330","w":1},{"s":"105786","t":"109802","w":1},{"s":"105786","t":"107154","w":1},{"s":"103881","t":"105786","w":1},{"s":"108756","t":"125944","w":1},{"s":"108756","t":"112330","w":1},{"s":"108756","t":"109802","w":1},{"s":"107154","t":"108756","w":1},{"s":"103881","t":"108756","w":1},{"s":"112330","t":"125944","w":1},{"s":"109802","t":"125944","w":1},{"s":"107154","t":"125944","w":1},{"s":"103881","t":"125944","w":1},{"s":"109802","t":"112330","w":1},{"s":"107154","t":"112330","w":1},{"s":"103881","t":"112330","w":1},{"s":"107154","t":"109802","w":1},{"s":"103881","t":"109802","w":1},{"s":"103881","t":"107154","w":1},{"s":"106296","t":"123703","w":1},{"s":"112869","t":"123703","w":1},{"s":"108304","t":"123703","w":1},{"s":"107859","t":"123703","w":1},{"s":"112723","t":"123703","w":2},{"s":"108992","t":"123703","w":1},{"s":"116439","t":"123703","w":1},{"s":"123703","t":"130012","w":1},{"s":"105906","t":"123703","w":1},{"s":"104331","t":"123703","w":1},{"s":"122823","t":"123703","w":1},{"s":"105099","t":"123703","w":1},{"s":"106296","t":"119325","w":1},{"s":"112869","t":"119325","w":1},{"s":"108304","t":"119325","w":1},{"s":"107859","t":"119325","w":1},{"s":"112723","t":"119325","w":1},{"s":"108992","t":"119325","w":1},{"s":"116439","t":"119325","w":1},{"s":"119325","t":"130012","w":1},{"s":"105906","t":"119325","w":1},{"s":"104331","t":"119325","w":1},{"s":"119325","t":"122823","w":1},{"s":"105099","t":"119325","w":1},{"s":"106296","t":"112869","w":1},{"s":"106296","t":"108304","w":1},{"s":"106296","t":"107859","w":1},{"s":"106296","t":"112723","w":1},{"s":"106296","t":"108992","w":1},{"s":"105786","t":"106296","w":1},{"s":"106296","t":"116439","w":1},{"s":"106296","t":"130012","w":2},{"s":"105906","t":"106296","w":1},{"s":"106296","t":"108756","w":1},{"s":"105815","t":"106296","w":1},{"s":"104331","t":"106296","w":1},{"s":"106296","t":"122823","w":1},{"s":"105099","t":"106296","w":1},{"s":"108304","t":"112869","w":1},{"s":"107859","t":"112869","w":2},{"s":"112723","t":"112869","w":1},{"s":"108992","t":"112869","w":1},{"s":"105786","t":"112869","w":1},{"s":"112869","t":"116439","w":1},{"s":"112869","t":"130012","w":1},{"s":"105906","t":"112869","w":1},{"s":"108756","t":"112869","w":1},{"s":"105815","t":"112869","w":1},{"s":"104331","t":"112869","w":1},{"s":"112869","t":"122823","w":1},{"s":"105099","t":"112869","w":1},{"s":"107859","t":"108304","w":1},{"s":"108304","t":"112723","w":1},{"s":"108304","t":"108992","w":1},{"s":"105786","t":"108304","w":1},{"s":"108304","t":"116439","w":1},{"s":"108304","t":"130012","w":1},{"s":"105906","t":"108304","w":2},{"s":"108304","t":"108756","w":1},{"s":"105815","t":"108304","w":1},{"s":"104331","t":"108304","w":1},{"s":"108304","t":"122823","w":2},{"s":"105099","t":"108304","w":1},{"s":"107859","t":"112723","w":1},{"s":"107859","t":"108992","w":1},{"s":"105786","t":"107859","w":1},{"s":"107859","t":"116439","w":1},{"s":"107859","t":"130012","w":1},{"s":"105906","t":"107859","w":1},{"s":"107859","t":"108756","w":1},{"s":"105815","t":"107859","w":1},{"s":"104331","t":"107859","w":1},{"s":"107859","t":"122823","w":1},{"s":"105099","t":"107859","w":1},{"s":"108992","t":"112723","w":1},{"s":"105786","t":"112723","w":1},{"s":"112723","t":"116439","w":1},{"s":"112723","t":"130012","w":1},{"s":"105906","t":"112723","w":1},{"s":"108756","t":"112723","w":1},{"s":"105815","t":"112723","w":1},{"s":"104331","t":"112723","w":1},{"s":"112723","t":"122823","w":1},{"s":"105099","t":"112723","w":1},{"s":"105786","t":"108992","w":1},{"s":"108992","t":"116439","w":1},{"s":"108992","t":"130012","w":1},{"s":"105906","t":"108992","w":1},{"s":"108756","t":"108992","w":1},{"s":"105815","t":"108992","w":1},{"s":"104331","t":"108992","w":1},{"s":"108992","t":"122823","w":1},{"s":"105099","t":"108992","w":2},{"s":"105786","t":"116439","w":1},{"s":"105786","t":"130012","w":1},{"s":"105786","t":"105906","w":1},{"s":"104331","t":"105786","w":1},{"s":"105786","t":"122823","w":1},{"s":"105099","t":"105786","w":1},{"s":"116439","t":"130012","w":1},{"s":"105906","t":"116439","w":1},{"s":"108756","t":"116439","w":1},{"s":"105815","t":"116439","w":1},{"s":"104331","t":"116439","w":2},{"s":"116439","t":"122823","w":1},{"s":"105099","t":"116439","w":1},{"s":"105906","t":"130012","w":1},{"s":"108756","t":"130012","w":1},{"s":"105815","t":"130012","w":1},{"s":"104331","t":"130012","w":1},{"s":"122823","t":"130012","w":1},{"s":"105099","t":"130012","w":1},{"s":"105906","t":"108756","w":1},{"s":"105815","t":"105906","w":1},{"s":"104331","t":"105906","w":1},{"s":"105906","t":"122823","w":2},{"s":"105099","t":"105906","w":1},{"s":"104331","t":"108756","w":1},{"s":"108756","t":"122823","w":1},{"s":"105099","t":"108756","w":1},{"s":"104331","t":"105815","w":1},{"s":"105815","t":"122823","w":1},{"s":"105099","t":"105815","w":1},{"s":"104331","t":"122823","w":1},{"s":"104331","t":"105099","w":1},{"s":"105099","t":"122823","w":1},{"s":"102154","t":"118763","w":1},{"s":"102154","t":"122298","w":1},{"s":"118763","t":"122298","w":1},{"s":"125662","t":"773","w":1},{"s":"124328","t":"126300","w":1},{"s":"108990","t":"11843","w":1},{"s":"112330","t":"121213","w":1},{"s":"140639","t":"567","w":1},{"s":"124591","t":"19177","w":1},{"s":"109354","t":"122661","w":1},{"s":"110694","t":"125485","w":1},{"s":"112423","t":"114505","w":1},{"s":"112423","t":"123472","w":1},{"s":"114505","t":"123472","w":1},{"s":"123022","t":"143752","w":1},{"s":"126108","t":"143752","w":1},{"s":"123022","t":"126108","w":1},{"s":"123344","t":"127141","w":1},{"s":"127141","t":"128723","w":1},{"s":"123344","t":"128723","w":1},{"s":"109802","t":"132980","w":1},{"s":"116484","t":"121666","w":1},{"s":"103877","t":"123468","w":1},{"s":"123468","t":"126088","w":1},{"s":"103877","t":"126088","w":1},{"s":"11842","t":"128144","w":1},{"s":"122661","t":"2793","w":1},{"s":"105786","t":"112237","w":1},{"s":"102154","t":"133904","w":1},{"s":"113152","t":"11843","w":1},{"s":"11843","t":"120631","w":1},{"s":"105786","t":"113838","w":1},{"s":"105786","t":"110966","w":1},{"s":"111614","t":"19177","w":1},{"s":"107172","t":"109802","w":1},{"s":"109802","t":"3862","w":1},{"s":"108213","t":"111477","w":1},{"s":"122298","t":"19483","w":1},{"s":"102154","t":"115214","w":1},{"s":"105721","t":"109223","w":1},{"s":"102154","t":"106842","w":1},{"s":"102154","t":"117723","w":1},{"s":"106412","t":"135507","w":1},{"s":"123344","t":"124846","w":1},{"s":"123472","t":"128715","w":1},{"s":"111477","t":"113580","w":1},{"s":"111477","t":"117846","w":1},{"s":"111303","t":"19177","w":1},{"s":"109354","t":"112751","w":1}]};
+
+// ═══════════════════════════════════════════
+// DATA PROCESSING
+// ═══════════════════════════════════════════
+const nodes = RAW_DATA.n.map(d => ({
+  id: d.i,
+  name: d.n,
+  weight: d.w,
+  orgs: d.o,
+  groups: d.g,
+  numOrgs: d.c,
+  bio: d.b || ''
+}));
+
+const links = RAW_DATA.l.map(d => ({
+  source: d.s,
+  target: d.t,
+  weight: d.w
+}));
+
+const nodeMap = new Map(nodes.map(n => [n.id, n]));
+const sorted = [...nodes].sort((a, b) => b.weight - a.weight || b.numOrgs - a.numOrgs);
+
+function getOrgColor(orgs) {
+  if (orgs.includes('IAB') && orgs.includes('IESG')) return '#e74c3c';
+  if (orgs.includes('IAB')) return '#c0392b';
+  if (orgs.includes('IESG') || orgs.includes('AREA')) return '#2980b9';
+  if (orgs.includes('IRTF-RG')) return '#27ae60';
+  return '#7f8c8d';
+}
+
+function getNodeRadius(w) {
+  if (w >= 10) return 14;
+  if (w >= 8) return 11;
+  if (w >= 5) return 9;
+  if (w >= 3) return 7;
+  return 4;
+}
+
+// ═══════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════
+document.querySelectorAll('.tab-item').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'graph-panel' && !graphInitialized) initGraph();
+  });
+});
+
+// ═══════════════════════════════════════════
+// DETAIL OVERLAY
+// ═══════════════════════════════════════════
+function showDetail(node) {
+  const overlay = document.getElementById('detail-overlay');
+  document.getElementById('detail-name').textContent = node.name;
+  document.getElementById('detail-bio').textContent = node.bio;
+
+  let html = '<div class="detail-section">';
+  html += `<div class="detail-row"><span class="detail-row-label">Weight</span><span class="detail-row-value">${node.weight}</span></div>`;
+  html += `<div class="detail-row"><span class="detail-row-label">Bodies</span><span class="detail-row-value">${node.orgs.join(', ')}</span></div>`;
+  html += '</div>';
+
+  html += '<div class="group-header">Group Memberships</div>';
+  html += '<div class="detail-section">';
+  node.groups.forEach(g => {
+    const [org, name] = g.split(':');
+    html += `<div class="detail-row"><span class="detail-row-label" style="width:70px"><span class="org-pill ${org}">${org}</span></span><span class="detail-row-value">${name}</span></div>`;
+  });
+  html += '</div>';
+
+  // Find connections
+  const connections = [];
+  links.forEach(l => {
+    const sid = typeof l.source === 'object' ? l.source.id : l.source;
+    const tid = typeof l.target === 'object' ? l.target.id : l.target;
+    if (sid === node.id || tid === node.id) {
+      const otherId = sid === node.id ? tid : sid;
+      const other = nodeMap.get(otherId);
+      if (other && other.weight > 1) connections.push(other);
+    }
+  });
+  connections.sort((a, b) => b.weight - a.weight);
+
+  if (connections.length > 0) {
+    html += '<div class="group-header">Connected Power Nodes</div>';
+    html += '<div class="detail-section">';
+    connections.slice(0, 10).forEach(c => {
+      html += `<div class="detail-row"><span class="detail-row-value">${c.name}</span><span style="margin-left:auto"><span class="weight-badge">${c.weight}</span></span></div>`;
+    });
+    html += '</div>';
+  }
+
+  document.getElementById('detail-body').innerHTML = html;
+  overlay.classList.add('open');
+}
+
+document.getElementById('detail-backdrop').addEventListener('click', () => {
+  document.getElementById('detail-overlay').classList.remove('open');
+});
+document.getElementById('detail-close').addEventListener('click', () => {
+  document.getElementById('detail-overlay').classList.remove('open');
+});
+
+// ═══════════════════════════════════════════
+// FORCE GRAPH (D3.js)
+// ═══════════════════════════════════════════
+let graphInitialized = false;
+
+function initGraph() {
+  graphInitialized = true;
+  const container = document.getElementById('graph-panel');
+  const svg = d3.select('#graph-svg');
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+
+  svg.attr('viewBox', [0, 0, width, height]);
+
+  // Background gradient
+  const defs = svg.append('defs');
+  const grad = defs.append('radialGradient').attr('id', 'bg-grad');
+  grad.append('stop').attr('offset', '0%').attr('stop-color', '#252840');
+  grad.append('stop').attr('offset', '100%').attr('stop-color', '#0f1019');
+  svg.append('rect').attr('width', width).attr('height', height).attr('fill', 'url(#bg-grad)');
+
+  // Glow filter for high-weight nodes
+  const glow = defs.append('filter').attr('id', 'glow');
+  glow.append('feGaussianBlur').attr('stdDeviation', '3').attr('result', 'blur');
+  const merge = glow.append('feMerge');
+  merge.append('feMergeNode').attr('in', 'blur');
+  merge.append('feMergeNode').attr('in', 'SourceGraphic');
+
+  // Only show nodes with weight > 0 and their links for the main view
+  const visibleNodes = nodes.filter(n => n.weight >= 1);
+  const visibleIds = new Set(visibleNodes.map(n => n.id));
+  const visibleLinks = links.filter(l => visibleIds.has(l.source) && visibleIds.has(l.target));
+
+  const simulation = d3.forceSimulation(visibleNodes)
+    .force('link', d3.forceLink(visibleLinks).id(d => d.id).distance(d => {
+      const sw = nodeMap.get(typeof d.source === 'object' ? d.source.id : d.source)?.weight || 1;
+      const tw = nodeMap.get(typeof d.target === 'object' ? d.target.id : d.target)?.weight || 1;
+      return 100 - Math.min(sw, tw) * 4;
+    }).strength(d => Math.min(d.weight * 0.15, 0.8)))
+    .force('charge', d3.forceManyBody().strength(d => -50 - d.weight * 15))
+    .force('center', d3.forceCenter(width / 2, height / 2))
+    .force('collision', d3.forceCollide(d => getNodeRadius(d.weight) + 4))
+    .force('x', d3.forceX(width / 2).strength(0.03))
+    .force('y', d3.forceY(height / 2).strength(0.03));
+
+  const g = svg.append('g');
+
+  const link = g.append('g')
+    .selectAll('line')
+    .data(visibleLinks)
+    .join('line')
+    .attr('stroke', 'rgba(100,130,180,0.15)')
+    .attr('stroke-width', d => Math.min(d.weight * 0.8, 3));
+
+  const node = g.append('g')
+    .selectAll('g')
+    .data(visibleNodes)
+    .join('g')
+    .style('cursor', 'pointer')
+    .call(d3.drag()
+      .on('start', (event, d) => {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x; d.fy = d.y;
+      })
+      .on('drag', (event, d) => { d.fx = event.x; d.fy = event.y; })
+      .on('end', (event, d) => {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null; d.fy = null;
+      })
+    );
+
+  // Node circles with embossed effect
+  node.append('circle')
+    .attr('r', d => getNodeRadius(d.weight))
+    .attr('fill', d => getOrgColor(d.orgs))
+    .attr('stroke', d => d.weight >= 8 ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.15)')
+    .attr('stroke-width', d => d.weight >= 8 ? 2 : 1)
+    .attr('filter', d => d.weight >= 8 ? 'url(#glow)' : null);
+
+  // Labels for high-weight nodes
+  node.filter(d => d.weight >= 5)
+    .append('text')
+    .text(d => d.name.split(' ').pop())
+    .attr('dy', d => getNodeRadius(d.weight) + 12)
+    .attr('text-anchor', 'middle')
+    .attr('fill', 'rgba(255,255,255,0.75)')
+    .attr('font-size', '10px')
+    .attr('font-weight', '500')
+    .attr('pointer-events', 'none');
+
+  // Tooltip + click
+  const tooltip = document.getElementById('tooltip');
+
+  node.on('mouseover', (event, d) => {
+    tooltip.style.display = 'block';
+    tooltip.textContent = `${d.name} (${d.orgs.join(', ')})`;
+  }).on('mousemove', (event) => {
+    const rect = container.getBoundingClientRect();
+    tooltip.style.left = (event.clientX - rect.left + 12) + 'px';
+    tooltip.style.top = (event.clientY - rect.top - 30) + 'px';
+  }).on('mouseout', () => {
+    tooltip.style.display = 'none';
+  }).on('click', (event, d) => {
+    tooltip.style.display = 'none';
+    showDetail(d);
+  });
+
+  // Zoom
+  const zoom = d3.zoom()
+    .scaleExtent([0.3, 5])
+    .on('zoom', (event) => g.attr('transform', event.transform));
+  svg.call(zoom);
+
+  simulation.on('tick', () => {
+    link
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+}
+
+// ═══════════════════════════════════════════
+// LIST VIEW
+// ═══════════════════════════════════════════
+function renderList(filter = '') {
+  const lc = filter.toLowerCase();
+  const filtered = lc ? sorted.filter(n => n.name.toLowerCase().includes(lc)) : sorted;
+
+  const tiers = [
+    { label: 'Cross-Body Leadership', min: 10, nodes: [] },
+    { label: 'Governance Core', min: 5, nodes: [] },
+    { label: 'Research & Working Group Leaders', min: 3, nodes: [] },
+    { label: 'Working Group Chairs', min: 0, nodes: [] }
+  ];
+
+  filtered.forEach(n => {
+    if (n.weight >= 10) tiers[0].nodes.push(n);
+    else if (n.weight >= 5) tiers[1].nodes.push(n);
+    else if (n.weight >= 3) tiers[2].nodes.push(n);
+    else tiers[3].nodes.push(n);
+  });
+
+  let html = '';
+  let rank = 1;
+  tiers.forEach(tier => {
+    if (tier.nodes.length === 0) return;
+    html += `<div class="group-header">${tier.label} (${tier.nodes.length})</div>`;
+    html += '<div class="table-group">';
+    tier.nodes.forEach(n => {
+      const pills = n.orgs.map(o => `<span class="org-pill ${o}">${o}</span>`).join('');
+      html += `
+        <div class="cell" data-id="${n.id}">
+          <div class="cell-rank">${rank}</div>
+          <div class="cell-body">
+            <div class="cell-name">${n.name}</div>
+            <div class="org-pills">${pills}</div>
+          </div>
+          <div class="cell-weight"><span class="weight-badge">${n.weight}</span></div>
+        </div>`;
+      rank++;
+    });
+    html += '</div>';
+  });
+
+  document.getElementById('list-content').innerHTML = html;
+
+  document.querySelectorAll('.cell[data-id]').forEach(cell => {
+    cell.addEventListener('click', () => {
+      const node = nodeMap.get(cell.dataset.id);
+      if (node) showDetail(node);
+    });
+  });
+}
+
+document.getElementById('search-input').addEventListener('input', (e) => {
+  renderList(e.target.value);
+});
+
+renderList();
+
+// ═══════════════════════════════════════════
+// STATS VIEW
+// ═══════════════════════════════════════════
+function renderStats() {
+  const multiOrg = sorted.filter(n => n.numOrgs >= 2);
+  const orgCounts = {};
+  nodes.forEach(n => n.orgs.forEach(o => { orgCounts[o] = (orgCounts[o] || 0) + 1; }));
+  const maxOrg = Math.max(...Object.values(orgCounts));
+
+  let html = '';
+
+  // Summary cards
+  html += '<div style="display:flex;gap:6px;padding:0 10px">';
+  html += `<div class="stat-card" style="flex:1;text-align:center"><div class="stat-number">${nodes.length}</div><div class="stat-label">People tracked</div></div>`;
+  html += `<div class="stat-card" style="flex:1;text-align:center"><div class="stat-number">${multiOrg.length}</div><div class="stat-label">Multi-body</div></div>`;
+  html += `<div class="stat-card" style="flex:1;text-align:center"><div class="stat-number">${links.length}</div><div class="stat-label">Connections</div></div>`;
+  html += '</div>';
+
+  // Org distribution
+  html += '<div class="stat-card"><h3>People by Governance Body</h3>';
+  const orgOrder = ['IETF-WG', 'IRTF-RG', 'AREA', 'IESG', 'IAB'];
+  const orgLabels = {'IAB': 'IAB', 'IESG': 'IESG', 'AREA': 'Area Dir', 'IRTF-RG': 'IRTF RG', 'IETF-WG': 'WG Chair'};
+  orgOrder.forEach(o => {
+    const c = orgCounts[o] || 0;
+    const pct = (c / maxOrg * 100).toFixed(0);
+    const color = o === 'IAB' ? 'var(--iab-color)' : o === 'IESG' ? 'var(--iesg-color)' : o === 'AREA' ? 'var(--area-color)' : o === 'IRTF-RG' ? 'var(--irtf-color)' : 'var(--wg-color)';
+    html += `<div class="stat-bar-row"><span class="stat-bar-label">${orgLabels[o]}</span><div class="stat-bar-track"><div class="stat-bar-fill" style="width:${pct}%;background:linear-gradient(180deg, ${color}88, ${color})"></div></div><span class="stat-bar-val">${c}</span></div>`;
+  });
+  html += '</div>';
+
+  // Weight distribution
+  html += '<div class="stat-card"><h3>Influence Distribution</h3>';
+  const weightBuckets = [
+    { label: 'w ≥ 10', count: sorted.filter(n => n.weight >= 10).length },
+    { label: 'w 5–9', count: sorted.filter(n => n.weight >= 5 && n.weight < 10).length },
+    { label: 'w 3–4', count: sorted.filter(n => n.weight >= 3 && n.weight < 5).length },
+    { label: 'w 1–2', count: sorted.filter(n => n.weight >= 1 && n.weight < 3).length },
+  ];
+  const maxBucket = Math.max(...weightBuckets.map(b => b.count));
+  weightBuckets.forEach(b => {
+    const pct = (b.count / maxBucket * 100).toFixed(0);
+    html += `<div class="stat-bar-row"><span class="stat-bar-label">${b.label}</span><div class="stat-bar-track"><div class="stat-bar-fill" style="width:${pct}%"></div></div><span class="stat-bar-val">${b.count}</span></div>`;
+  });
+  html += '</div>';
+
+  // Key insight
+  html += `<div class="stat-card"><h3>Key Insight</h3><p style="font-size:14px;color:var(--text-secondary);line-height:1.5">Of ${nodes.length} people in active governance roles, only <strong>${multiOrg.length}</strong> span multiple bodies. The top ${sorted.filter(n=>n.weight>=10).length} individuals sit simultaneously on the IAB, IESG, and serve as Area Directors — making them the highest-centrality nodes in internet governance.</p></div>`;
+
+  // Data source note
+  html += '<div class="stat-card" style="text-align:center"><p style="font-size:11px;color:var(--text-secondary)">Data sourced live from IETF Datatracker API<br>datatracker.ietf.org/api/v1</p></div>';
+
+  document.getElementById('stats-content').innerHTML = html;
+}
+
+renderStats();
+
+// Init graph on load
+initGraph();
+
+</script>
+</body>
+</html>

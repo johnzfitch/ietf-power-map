@@ -1,0 +1,9 @@
+# SQLite databases (binary, large)
+*.db
+
+# Claude conversation exports
+convos/
+
+# Python cache
+__pycache__/
+*.pyc
